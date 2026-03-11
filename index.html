@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Key Generator</title>
+
+<style>
+
+body{
+margin:0;
+height:100vh;
+display:flex;
+align-items:center;
+justify-content:center;
+font-family:Arial;
+background: radial-gradient(circle at 30% 20%, #5a00ff, #0a0014);
+color:white;
+overflow:hidden;
+}
+
+body::before{
+content:"";
+position:absolute;
+width:120%;
+height:120%;
+background:linear-gradient(120deg,#6b00ff,#9a00ff,#3a0080);
+filter:blur(120px);
+opacity:0.5;
+animation:move 8s infinite alternate;
+}
+
+@keyframes move{
+0%{transform:translate(-10%,-10%)}
+100%{transform:translate(10%,10%)}
+}
+
+.card{
+position:relative;
+background:#0f021a;
+padding:40px;
+border-radius:16px;
+box-shadow:0 0 40px #7a2cff66;
+width:360px;
+text-align:center;
+}
+
+input{
+width:100%;
+padding:12px;
+border:none;
+border-radius:8px;
+background:#1b0930;
+color:white;
+margin-bottom:15px;
+}
+
+button{
+width:100%;
+padding:12px;
+border:none;
+border-radius:8px;
+background:#7a2cff;
+color:white;
+font-weight:bold;
+cursor:pointer;
+transition:0.2s;
+}
+
+button:hover{
+box-shadow:0 0 12px #a060ff;
+}
+
+#key{
+margin-top:20px;
+word-break:break-all;
+font-size:14px;
+background:#140427;
+padding:10px;
+border-radius:8px;
+}
+
+.small{
+opacity:0.6;
+font-size:12px;
+margin-top:8px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+<h2>Generate Key</h2>
+
+<input id="username" placeholder="Username">
+
+<button onclick="generate()">Generate</button>
+
+<div id="key"></div>
+
+<div class="small" id="cooldown"></div>
+
+</div>
+
+<script>
+
+if (!document.referrer.includes("linkvertise.com")) {
+
+    window.location.href = "https://linkvertise.com/";
+
+}else{
+
+const XOR_KEY = 94
+const LENGTH = 64
+const META_DIGITS = 10
+const META_LEN = META_DIGITS * 2
+
+function randChar(){
+const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+return chars[Math.floor(Math.random()*chars.length)]
+}
+
+function randDigit(){
+return Math.floor(Math.random()*10).toString()
+}
+
+function b36encode(n){
+return n.toString(36).padStart(2,"0")
+}
+
+function encrypt(text){
+
+let hex=""
+
+for(let i=0;i<text.length;i++){
+let b=text.charCodeAt(i)^XOR_KEY
+hex+=b.toString(16).padStart(2,"0")
+}
+
+return hex
+}
+
+function usernameDigits(name){
+
+let len=name.length
+
+let c1=name.charCodeAt(0)%10
+let c2=name.charCodeAt(Math.floor(len/2))%10
+let c3=name.charCodeAt(len-1)%10
+
+return [c1.toString(),c2.toString(),c3.toString()]
+}
+
+async function getIP(){
+
+let r=await fetch("https://api.ipify.org?format=json")
+let j=await r.json()
+
+return j.ip.replace(/\./g,"")
+}
+
+function cooldownCheck(id){
+
+let data=localStorage.getItem("cool_"+id)
+
+if(!data) return true
+
+let last=parseInt(data)
+let now=Date.now()
+
+let diff=(now-last)/1000
+
+if(diff<600){
+
+let left=Math.floor(600-diff)
+document.getElementById("cooldown").innerText=
+"Wait "+left+"s before generating another key"
+
+return false
+}
+
+return true
+}
+
+function setCooldown(id){
+localStorage.setItem("cool_"+id,Date.now())
+}
+
+async function generate(){
+
+let username=document.getElementById("username").value.trim()
+
+if(!username)return
+
+let ip=await getIP()
+
+let id=username+"_"+ip
+
+if(!cooldownCheck(id))return
+
+let now=new Date()
+
+let hh=now.getHours().toString().padStart(2,"0")
+let mm=now.getMinutes().toString().padStart(2,"0")
+
+let unameDigits=usernameDigits(username)
+
+let ipDigits=[ip[0],ip[3],ip[4]]
+
+let timeDigits=[hh[0],hh[1],mm[0],mm[1]]
+
+let digits=[...unameDigits,...ipDigits,...timeDigits]
+
+let raw=Array(LENGTH).fill(0).map(randChar)
+
+let used=new Set()
+let meta=""
+
+for(let d of digits){
+
+let pos
+
+do{
+pos=Math.floor(Math.random()*(LENGTH-META_LEN))
+}while(used.has(pos))
+
+used.add(pos)
+
+raw[pos]=d
+
+meta+=b36encode(pos)
+}
+
+for(let i=0;i<META_LEN;i++){
+raw[LENGTH-META_LEN+i]=meta[i]
+}
+
+let rawKey=raw.join("")
+
+let encrypted=encrypt(rawKey)
+
+document.getElementById("key").innerText=encrypted
+
+setCooldown(id)
+
+}
+}
+</script>
+
+</body>
+</html>
